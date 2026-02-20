@@ -379,17 +379,31 @@ func (s stringSpan) isValidNetwork() bool {
 }
 
 func (s stringSpan) isValidHField() bool {
+	// Allow long decimal values for H-fields. Accept either a single decimal
+	// component or two decimal components separated by '-' (e.g.
+	// 12345678901234567890-12345678901234567890).
+	// Keep a practical per-component length limit to avoid pathological inputs.
+	const maxHComponentLen = 128
+	validateComp := func(ss stringSpan) bool {
+		if ss.len == 0 || ss.len > maxHComponentLen {
+			return false
+		}
+		for i := 0; i < ss.len; i++ {
+			if !isDecimal(*ss.at(i)) {
+				return false
+			}
+		}
+		return true
+	}
+
 	for i := 0; i < s.len; i++ {
 		if *s.at(i) == '-' {
 			first := stringSpan{s.s, i}
 			second := stringSpan{s.at(i + 1), s.len - i - 1}
-			if first.isValidUint(false, 0, 2_147_483_647) && second.isValidUint(false, 0, 2_147_483_647) {
-				return true
-			}
-			return false
+			return validateComp(first) && validateComp(second)
 		}
 	}
-	return s.isValidUint(false, 0, 2_147_483_647)
+	return validateComp(s)
 }
 
 func (s stringSpan) isValidIField() bool {
